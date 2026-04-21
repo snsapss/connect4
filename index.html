@@ -1,189 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Connect4 AI</title>
+
+<style>
+body{
+    font-family: Arial;
+    background: #0f172a;
+    color: white;
+    text-align: center;
+}
+
+.board{
+    display:grid;
+    grid-template-columns: repeat(7,60px);
+    gap:6px;
+    justify-content:center;
+    margin-top:20px;
+}
+
+.cell{
+    width:60px;
+    height:60px;
+    background:#1e293b;
+    border-radius:50%;
+    cursor:pointer;
+    position:relative;
+}
+
+.piece{
+    width:52px;
+    height:52px;
+    border-radius:50%;
+    position:absolute;
+    top:4px;
+    left:4px;
+}
+
+.red{background:red;}
+.yellow{background:gold;}
+</style>
+</head>
+
+<body>
+
+<h1>Connect4 AI</h1>
+<button onclick="restart()">Restart</button>
+
+<div id="board" class="board"></div>
+
+<script>
 class Connect4AI {
-    constructor(rows, cols) {
-        this.R = rows;
-        this.C = cols;
-
-        this.board = Array.from({ length: rows }, () => Array(cols).fill(0));
-
-        this.TT = new Map(); // transposition table
+    constructor(r,c){
+        this.R=r;
+        this.C=c;
+        this.board=Array.from({length:r},()=>Array(c).fill(0));
     }
 
-    moves() {
-        let m = [];
-        for (let c = 0; c < this.C; c++) {
-            if (this.board[0][c] === 0) m.push(c);
-        }
+    moves(){
+        let m=[];
+        for(let c=0;c<this.C;c++)
+            if(this.board[0][c]==0) m.push(c);
         return m;
     }
 
-    drop(c, p) {
-        for (let r = this.R - 1; r >= 0; r--) {
-            if (this.board[r][c] === 0) {
-                this.board[r][c] = p;
+    drop(c,p){
+        for(let r=this.R-1;r>=0;r--){
+            if(this.board[r][c]==0){
+                this.board[r][c]=p;
                 return r;
             }
         }
         return -1;
     }
 
-    undo(c) {
-        for (let r = 0; r < this.R; r++) {
-            if (this.board[r][c] !== 0) {
-                this.board[r][c] = 0;
+    undo(c){
+        for(let r=0;r<this.R;r++){
+            if(this.board[r][c]!=0){
+                this.board[r][c]=0;
                 break;
             }
         }
     }
 
-    win(p) {
-        let b = this.board, R = this.R, C = this.C;
+    win(p){
+        let b=this.board,R=this.R,C=this.C;
 
-        for (let r = 0; r < R; r++) {
-            for (let c = 0; c < C; c++) {
-                if (b[r][c] !== p) continue;
+        for(let r=0;r<R;r++){
+            for(let c=0;c<C;c++){
+                if(b[r][c]!=p) continue;
 
-                if (c + 3 < C &&
-                    b[r][c + 1] === p &&
-                    b[r][c + 2] === p &&
-                    b[r][c + 3] === p) return true;
+                if(c+3<C &&
+                b[r][c+1]==p&&b[r][c+2]==p&&b[r][c+3]==p) return true;
 
-                if (r + 3 < R &&
-                    b[r + 1][c] === p &&
-                    b[r + 2][c] === p &&
-                    b[r + 3][c] === p) return true;
+                if(r+3<R &&
+                b[r+1][c]==p&&b[r+2][c]==p&&b[r+3][c]==p) return true;
 
-                if (r + 3 < R && c + 3 < C &&
-                    b[r + 1][c + 1] === p &&
-                    b[r + 2][c + 2] === p &&
-                    b[r + 3][c + 3] === p) return true;
+                if(r+3<R&&c+3<C &&
+                b[r+1][c+1]==p&&b[r+2][c+2]==p&&b[r+3][c+3]==p) return true;
 
-                if (r + 3 < R && c - 3 >= 0 &&
-                    b[r + 1][c - 1] === p &&
-                    b[r + 2][c - 2] === p &&
-                    b[r + 3][c - 3] === p) return true;
+                if(r+3<R&&c-3>=0 &&
+                b[r+1][c-1]==p&&b[r+2][c-2]==p&&b[r+3][c-3]==p) return true;
             }
         }
         return false;
     }
 
-    score() {
-        let score = 0;
-        let b = this.board, R = this.R, C = this.C;
+    score(){
+        let score=0;
+        let center=Math.floor(this.C/2);
 
-        let center = Math.floor(C / 2);
-
-        // center control (VERY important)
-        for (let r = 0; r < R; r++) {
-            if (b[r][center] === 2) score += 6;
-            if (b[r][center] === 1) score -= 6;
-        }
-
-        // window scoring
-        const evalWindow = (arr) => {
-            let ai = arr.filter(x => x === 2).length;
-            let hu = arr.filter(x => x === 1).length;
-
-            if (ai === 4) return 1000;
-            if (ai === 3 && hu === 0) return 50;
-            if (ai === 2 && hu === 0) return 10;
-
-            if (hu === 3 && ai === 0) return -80;
-
-            return 0;
-        };
-
-        for (let r = 0; r < R; r++) {
-            for (let c = 0; c < C - 3; c++) {
-                score += evalWindow([b[r][c], b[r][c + 1], b[r][c + 2], b[r][c + 3]]);
-            }
-        }
-
-        for (let c = 0; c < C; c++) {
-            for (let r = 0; r < R - 3; r++) {
-                score += evalWindow([b[r][c], b[r + 1][c], b[r + 2][c], b[r + 3][c]]);
-            }
+        for(let r=0;r<this.R;r++){
+            if(this.board[r][center]==2) score+=6;
         }
 
         return score;
     }
 
-    key() {
-        return this.board.map(r => r.join("")).join("|");
-    }
+    minimax(depth,alpha,beta,maximizing){
+        if(this.win(2)) return 1000;
+        if(this.win(1)) return -1000;
+        if(depth==0) return this.score();
 
-    orderMoves(moves) {
-        let center = Math.floor(this.C / 2);
-        return moves.sort((a, b) =>
-            Math.abs(a - center) - Math.abs(b - center)
-        );
-    }
+        let moves=this.moves();
 
-    minimax(depth, alpha, beta, maximizing) {
-        let key = this.key() + depth + maximizing;
+        if(maximizing){
+            let best=-Infinity;
 
-        if (this.TT.has(key)) return this.TT.get(key);
-
-        if (this.win(2)) return 100000;
-        if (this.win(1)) return -100000;
-
-        if (depth === 0) return this.score();
-
-        let moves = this.orderMoves(this.moves());
-
-        if (maximizing) {
-            let best = -Infinity;
-
-            for (let c of moves) {
-                this.drop(c, 2);
-                let val = this.minimax(depth - 1, alpha, beta, false);
+            for(let c of moves){
+                this.drop(c,2);
+                best=Math.max(best,this.minimax(depth-1,alpha,beta,false));
                 this.undo(c);
-
-                best = Math.max(best, val);
-                alpha = Math.max(alpha, best);
-
-                if (beta <= alpha) break;
+                alpha=Math.max(alpha,best);
+                if(beta<=alpha) break;
             }
-
-            this.TT.set(key, best);
             return best;
         } else {
-            let best = Infinity;
+            let best=Infinity;
 
-            for (let c of moves) {
-                this.drop(c, 1);
-                let val = this.minimax(depth - 1, alpha, beta, true);
+            for(let c of moves){
+                this.drop(c,1);
+                best=Math.min(best,this.minimax(depth-1,alpha,beta,true));
                 this.undo(c);
-
-                best = Math.min(best, val);
-                beta = Math.min(beta, best);
-
-                if (beta <= alpha) break;
+                beta=Math.min(beta,best);
+                if(beta<=alpha) break;
             }
-
-            this.TT.set(key, best);
             return best;
         }
     }
 
-    bestMove() {
-        let moves = this.orderMoves(this.moves());
+    bestMove(){
+        let moves=this.moves();
+        let best=-Infinity;
+        let move=moves[0];
 
-        let bestScore = -Infinity;
-        let bestMove = moves[0];
-
-        for (let c of moves) {
-            this.drop(c, 2);
-
-            let score = this.minimax(6, -Infinity, Infinity, false); // 🔥 strong depth
-
+        for(let c of moves){
+            this.drop(c,2);
+            let val=this.minimax(5,-Infinity,Infinity,false);
             this.undo(c);
 
-            if (score > bestScore) {
-                bestScore = score;
-                bestMove = c;
+            if(val>best){
+                best=val;
+                move=c;
             }
         }
-
-        return bestMove;
+        return move;
     }
 }
+
+let game;
+let turn=1;
+
+function createBoard(){
+    let board=document.getElementById("board");
+    board.innerHTML="";
+
+    for(let r=0;r<game.R;r++){
+        for(let c=0;c<game.C;c++){
+            let cell=document.createElement("div");
+            cell.className="cell";
+            cell.onclick=()=>play(c);
+            board.appendChild(cell);
+        }
+    }
+}
+
+function render(){
+    let cells=document.querySelectorAll(".cell");
+    let i=0;
+
+    for(let r=0;r<game.R;r++){
+        for(let c=0;c<game.C;c++){
+            cells[i].innerHTML="";
+            if(game.board[r][c]!=0){
+                let p=document.createElement("div");
+                p.className="piece "+(game.board[r][c]==1?"red":"yellow");
+                cells[i].appendChild(p);
+            }
+            i++;
+        }
+    }
+}
+
+function play(c){
+    if(turn!=1) return;
+
+    game.drop(c,1);
+    render();
+
+    if(game.win(1)) return alert("You win!");
+
+    turn=2;
+
+    setTimeout(()=>{
+        let ai=game.bestMove();
+        game.drop(ai,2);
+        render();
+
+        if(game.win(2)) alert("AI wins!");
+
+        turn=1;
+    },200);
+}
+
+function restart(){
+    game=new Connect4AI(4,7);
+    turn=1;
+    createBoard();
+    render();
+}
+
+restart();
+</script>
+
+</body>
+</html>
