@@ -1,11 +1,96 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Connect Solver</title>
+
+<style>
+body{
+margin:0;
+height:100vh;
+display:flex;
+flex-direction:column;
+justify-content:center;
+align-items:center;
+background:#0f1220;
+color:white;
+font-family:Arial;
+}
+
+#status{margin-bottom:8px}
+
+.controls{
+display:flex;
+gap:10px;
+margin-bottom:14px;
+flex-wrap:wrap;
+justify-content:center;
+}
+
+select,button{
+padding:9px 12px;
+border-radius:8px;
+border:none;
+background:#2a3160;
+color:white;
+cursor:pointer;
+}
+
+#board{
+display:grid;
+gap:6px;
+padding:12px;
+background:#151a33;
+border-radius:14px;
+box-shadow:0 12px 30px rgba(0,0,0,.5);
+}
+
+.cell{
+width:52px;
+height:52px;
+border-radius:50%;
+background:#22284a;
+cursor:pointer;
+transition:.15s;
+}
+
+.cell:hover{transform:scale(1.08)}
+
+.p1{background:#ff4d4d;}
+.p2{background:#ffd24d;}
+.hint{outline:3px solid #44ff88;}
+.win{box-shadow:0 0 15px #fff;}
+</style>
+</head>
+
+<body>
+
+<h2>Connect Solver</h2>
+<div id="status">Ready</div>
+
+<div class="controls">
+<select id="mode">
+<option value="4">7×4</option>
+<option value="5">7×5</option>
+</select>
+
+<select id="starter">
+<option value="player">You start</option>
+<option value="ai">AI starts</option>
+</select>
+
+<button onclick="reset()">Start</button>
+</div>
+
+<div id="board"></div>
+
 <script>
 const C=7
 let R=4
 let board=[]
 let game=true
 
-const MAX_TIME = 120   // ms thinking time (safe)
-let startTime
+let hintCol=null
 
 const boardEl=document.getElementById("board")
 const statusEl=document.getElementById("status")
@@ -20,7 +105,6 @@ board=Array.from({length:R},()=>Array(C).fill(0))
 game=true
 
 boardEl.style.gridTemplateColumns=`repeat(${C},52px)`
-
 draw()
 
 setStatus("Your turn")
@@ -34,26 +118,39 @@ setTimeout(aiMove,100)
 function draw(){
 boardEl.innerHTML=""
 
-for(let r=0;r<R;r++)
+for(let r=0;r<R;r++){
 for(let c=0;c<C;c++){
+
 let d=document.createElement("div")
 d.className="cell"
+
 if(board[r][c]==1)d.classList.add("p1")
 if(board[r][c]==2)d.classList.add("p2")
+
+if(r==0 && c==hintCol) d.classList.add("hint")
+
 d.onclick=()=>play(c)
+
 boardEl.appendChild(d)
-}
+
+}}
 }
 
 function drop(col,p,b=board){
-for(let r=R-1;r>=0;r--)
-if(b[r][col]==0){ b[r][col]=p; return true }
+for(let r=R-1;r>=0;r--){
+if(b[r][col]==0){
+b[r][col]=p
+return true
+}}
 return false
 }
 
-function undo(col,b=board){
+function undo(col){
 for(let r=0;r<R;r++)
-if(b[r][col]!=0){ b[r][col]=0; return }
+if(board[r][col]!=0){
+board[r][col]=0
+return
+}
 }
 
 function win(b,p){
@@ -76,23 +173,23 @@ if([0,1,2,3].every(i=>b[r-i][c+i]==p))return true
 return false
 }
 
-function moves(b){
-return [3,2,4,1,5,0,6].filter(c=>b[0][c]==0)
+function moves(){
+return [3,2,4,1,5,0,6].filter(c=>board[0][c]==0)
 }
 
-/* evaluation */
 function evaluate(){
-if(win(board,2)) return 10000
-if(win(board,1)) return -10000
+if(win(board,2))return 10000
+if(win(board,1))return -10000
 
 let score=0
-
-// center preference
 for(let r=0;r<R;r++)
-if(board[r][3]==2) score+=3
+if(board[r][3]==2)score+=3
 
 return score
 }
+
+let startTime
+const MAX_TIME=120
 
 function search(depth,alpha,beta,max){
 
@@ -102,65 +199,53 @@ return evaluate()
 if(depth==0 || win(board,1) || win(board,2))
 return evaluate()
 
-let m=moves(board)
+let m=moves()
 
 if(max){
 let best=-99999
-
 for(let c of m){
 drop(c,2)
-let val=search(depth-1,alpha,beta,false)
+let v=search(depth-1,alpha,beta,false)
 undo(c)
-
-best=Math.max(best,val)
-alpha=Math.max(alpha,val)
-if(beta<=alpha) break
+best=Math.max(best,v)
+alpha=Math.max(alpha,v)
+if(beta<=alpha)break
 }
-
 return best
 }else{
 let best=99999
-
 for(let c of m){
 drop(c,1)
-let val=search(depth-1,alpha,beta,true)
+let v=search(depth-1,alpha,beta,true)
 undo(c)
-
-best=Math.min(best,val)
-beta=Math.min(beta,val)
-if(beta<=alpha) break
+best=Math.min(best,v)
+beta=Math.min(beta,v)
+if(beta<=alpha)break
 }
-
 return best
 }
 }
 
 function bestMove(){
-
 startTime=Date.now()
-
 let best=-99999
 let move=3
 
-for(let depth=1;depth<=12;depth++){
-
-let m=moves(board)
-
-for(let c of m){
-
+for(let depth=1;depth<=10;depth++){
+for(let c of moves()){
 drop(c,2)
-let val=search(depth,-99999,99999,false)
+let v=search(depth,-99999,99999,false)
 undo(c)
 
-if(val>best){
-best=val
+if(v>best){
+best=v
 move=c
 }
 }
-
-if(Date.now()-startTime>MAX_TIME) break
+if(Date.now()-startTime>MAX_TIME)break
 }
 
+hintCol=move
 return move
 }
 
@@ -177,7 +262,7 @@ return
 }
 
 setStatus("AI thinking...")
-setTimeout(aiMove,10)
+setTimeout(aiMove,50)
 }
 
 function aiMove(){
@@ -198,3 +283,6 @@ setStatus("Your turn")
 
 reset()
 </script>
+
+</body>
+</html>
