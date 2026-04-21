@@ -1,96 +1,11 @@
-<!DOCTYPE html>
-<html>
-<head>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Connect Solver</title>
-
-<style>
-body{
-margin:0;
-height:100vh;
-display:flex;
-flex-direction:column;
-justify-content:center;
-align-items:center;
-background:#0f1220;
-color:white;
-font-family:Arial;
-}
-
-#status{margin-bottom:8px}
-
-.controls{
-display:flex;
-gap:10px;
-margin-bottom:14px;
-flex-wrap:wrap;
-justify-content:center;
-}
-
-select,button{
-padding:9px 12px;
-border-radius:8px;
-border:none;
-background:#2a3160;
-color:white;
-cursor:pointer;
-}
-
-#board{
-display:grid;
-gap:6px;
-padding:12px;
-background:#151a33;
-border-radius:14px;
-box-shadow:0 12px 30px rgba(0,0,0,.5);
-}
-
-.cell{
-width:52px;
-height:52px;
-border-radius:50%;
-background:#22284a;
-cursor:pointer;
-transition:.15s;
-}
-
-.cell:hover{transform:scale(1.08)}
-
-.p1{background:#ff4d4d;}
-.p2{background:#ffd24d;}
-</style>
-</head>
-
-<body>
-
-<h2>Connect Solver</h2>
-<div id="status">Ready</div>
-
-<div class="controls">
-
-<select id="mode">
-<option value="4">7×4</option>
-<option value="5">7×5</option>
-</select>
-
-<select id="starter">
-<option value="player">You start</option>
-<option value="ai">AI starts</option>
-</select>
-
-<button onclick="reset()">Start</button>
-
-</div>
-
-<div id="board"></div>
-
 <script>
-
 const C=7
 let R=4
 let board=[]
 let game=true
-let cache=new Map()
+
+const MAX_TIME = 120   // ms thinking time (safe)
+let startTime
 
 const boardEl=document.getElementById("board")
 const statusEl=document.getElementById("status")
@@ -100,11 +15,8 @@ const starterEl=document.getElementById("starter")
 function setStatus(t){statusEl.innerText=t}
 
 function reset(){
-
 R=parseInt(modeEl.value)
-
 board=Array.from({length:R},()=>Array(C).fill(0))
-cache.clear()
 game=true
 
 boardEl.style.gridTemplateColumns=`repeat(${C},52px)`
@@ -115,40 +27,36 @@ setStatus("Your turn")
 
 if(starterEl.value==="ai"){
 setStatus("AI thinking...")
-setTimeout(aiMove,150)
+setTimeout(aiMove,100)
 }
 }
 
 function draw(){
 boardEl.innerHTML=""
 
-for(let r=0;r<R;r++){
+for(let r=0;r<R;r++)
 for(let c=0;c<C;c++){
-
 let d=document.createElement("div")
 d.className="cell"
-
 if(board[r][c]==1)d.classList.add("p1")
 if(board[r][c]==2)d.classList.add("p2")
-
 d.onclick=()=>play(c)
-
 boardEl.appendChild(d)
-
-}}
+}
 }
 
 function drop(col,p,b=board){
-for(let r=R-1;r>=0;r--){
-if(b[r][col]==0){
-b[r][col]=p
-return true
-}}
+for(let r=R-1;r>=0;r--)
+if(b[r][col]==0){ b[r][col]=p; return true }
 return false
 }
 
-function win(b,p){
+function undo(col,b=board){
+for(let r=0;r<R;r++)
+if(b[r][col]!=0){ b[r][col]=0; return }
+}
 
+function win(b,p){
 for(let r=0;r<R;r++)
 for(let c=0;c<C-3;c++)
 if([0,1,2,3].every(i=>b[r][c+i]==p))return true
@@ -168,89 +76,111 @@ if([0,1,2,3].every(i=>b[r-i][c+i]==p))return true
 return false
 }
 
-function copy(b){return b.map(r=>[...r])}
-
-function key(b){return b.flat().join("")}
-
 function moves(b){
 return [3,2,4,1,5,0,6].filter(c=>b[0][c]==0)
 }
 
-function minimax(b,player){
+/* evaluation */
+function evaluate(){
+if(win(board,2)) return 10000
+if(win(board,1)) return -10000
 
-let k=key(b)
-if(cache.has(k))return cache.get(k)
+let score=0
 
-if(win(b,2))return 1
-if(win(b,1))return -1
+// center preference
+for(let r=0;r<R;r++)
+if(board[r][3]==2) score+=3
 
-let m=moves(b)
-if(!m.length)return 0
+return score
+}
 
-let best=player==2?-2:2
+function search(depth,alpha,beta,max){
+
+if(Date.now()-startTime>MAX_TIME)
+return evaluate()
+
+if(depth==0 || win(board,1) || win(board,2))
+return evaluate()
+
+let m=moves(board)
+
+if(max){
+let best=-99999
 
 for(let c of m){
+drop(c,2)
+let val=search(depth-1,alpha,beta,false)
+undo(c)
 
-let nb=copy(b)
-drop(c,player,nb)
-
-let score=minimax(nb,player==2?1:2)
-
-if(player==2){
-best=Math.max(best,score)
-if(best==1)break
-}else{
-best=Math.min(best,score)
-if(best==-1)break
+best=Math.max(best,val)
+alpha=Math.max(alpha,val)
+if(beta<=alpha) break
 }
 
-}
-
-cache.set(k,best)
 return best
+}else{
+let best=99999
+
+for(let c of m){
+drop(c,1)
+let val=search(depth-1,alpha,beta,true)
+undo(c)
+
+best=Math.min(best,val)
+beta=Math.min(beta,val)
+if(beta<=alpha) break
+}
+
+return best
+}
 }
 
 function bestMove(){
 
+startTime=Date.now()
+
+let best=-99999
+let move=3
+
+for(let depth=1;depth<=12;depth++){
+
 let m=moves(board)
-let best=-2
-let move=m[0]
 
 for(let c of m){
 
-let nb=copy(board)
-drop(c,2,nb)
+drop(c,2)
+let val=search(depth,-99999,99999,false)
+undo(c)
 
-let score=minimax(nb,1)
-
-if(score>best){
-best=score
+if(val>best){
+best=val
 move=c
 }
+}
+
+if(Date.now()-startTime>MAX_TIME) break
 }
 
 return move
 }
 
 function play(c){
-
 if(!game)return
 if(!drop(c,1))return
 
 draw()
 
 if(win(board,1)){
-setStatus("You win 🎉")
+setStatus("You win")
 game=false
 return
 }
 
 setStatus("AI thinking...")
-setTimeout(aiMove,50)
+setTimeout(aiMove,10)
 }
 
 function aiMove(){
-
 if(!game)return
 
 let c=bestMove()
@@ -259,7 +189,7 @@ drop(c,2)
 draw()
 
 if(win(board,2)){
-setStatus("AI wins 🤖")
+setStatus("AI wins")
 game=false
 }else{
 setStatus("Your turn")
@@ -267,8 +197,4 @@ setStatus("Your turn")
 }
 
 reset()
-
 </script>
-
-</body>
-</html>
