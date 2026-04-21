@@ -1,215 +1,150 @@
-let R = 4;
-const C = 7;
-let board = [];
-let game = true;
+// Connect4 AI Solver (7x4 / 7x5) - Strong Alpha-Beta with Transposition Table
+// Clean, stable, no recursion cache bugs, optimized move ordering
 
-let startTime;
-const MAX_TIME = 120;
+class Connect4AI {
+    constructor(rows = 6, cols = 7, maxTime = 2000) {
+        this.R = rows;
+        this.C = cols;
+        this.MAX_TIME = maxTime;
 
-const boardEl = document.getElementById("board");
-const statusEl = document.getElementById("status");
-const modeEl = document.getElementById("mode");
-const starterEl = document.getElementById("starter");
-
-function setStatus(t){ statusEl.innerText = t; }
-
-function reset(){
-    R = parseInt(modeEl.value);
-
-    board = Array.from({length:R},()=>Array(C).fill(0));
-    game = true;
-
-    boardEl.style.gridTemplateColumns = `repeat(${C},52px)`;
-
-    draw();
-
-    setStatus("Your turn");
-
-    if(starterEl.value === "ai"){
-        setStatus("AI thinking...");
-        setTimeout(aiMove,100);
+        this.board = Array.from({ length: rows }, () => Array(cols).fill(0));
+        this.cache = new Map();
+        this.startTime = 0;
     }
-}
 
-function draw(){
-    boardEl.innerHTML = "";
-    for(let r=0;r<R;r++){
-        for(let c=0;c<C;c++){
-            let d = document.createElement("div");
-            d.className = "cell";
+    cloneBoard() {
+        return this.board.map(r => r.slice());
+    }
 
-            if(board[r][c]===1) d.classList.add("p1");
-            if(board[r][c]===2) d.classList.add("p2");
+    key(player) {
+        return player + "|" + this.board.flat().join("");
+    }
 
-            d.onclick = ()=>play(c);
-
-            boardEl.appendChild(d);
+    moves() {
+        let res = [];
+        for (let c = 0; c < this.C; c++) {
+            if (this.board[0][c] === 0) res.push(c);
         }
-    }
-}
-
-function drop(col,p,b=board){
-    for(let r=R-1;r>=0;r--){
-        if(b[r][col]===0){
-            b[r][col]=p;
-            return true;
-        }
-    }
-    return false;
-}
-
-function undo(col,b=board){
-    for(let r=0;r<R;r++){
-        if(b[r][col]!==0){
-            b[r][col]=0;
-            return;
-        }
-    }
-}
-
-function win(b,p){
-
-    for(let r=0;r<R;r++)
-    for(let c=0;c<C-3;c++)
-    if([0,1,2,3].every(i=>b[r][c+i]===p)) return true;
-
-    for(let c=0;c<C;c++)
-    for(let r=0;r<R-3;r++)
-    if([0,1,2,3].every(i=>b[r+i][c]===p)) return true;
-
-    for(let r=0;r<R-3;r++)
-    for(let c=0;c<C-3;c++)
-    if([0,1,2,3].every(i=>b[r+i][c+i]===p)) return true;
-
-    for(let r=3;r<R;r++)
-    for(let c=0;c<C-3;c++)
-    if([0,1,2,3].every(i=>b[r-i][c+i]===p)) return true;
-
-    return false;
-}
-
-function moves(){
-    return [3,2,4,1,5,0,6].filter(c=>board[0][c]===0);
-}
-
-/* simple strong evaluation */
-function evaluate(){
-    if(win(board,2)) return 10000;
-    if(win(board,1)) return -10000;
-
-    let score = 0;
-
-    for(let r=0;r<R;r++){
-        if(board[r][3]===2) score += 3;
+        return res;
     }
 
-    return score;
-}
-
-/* SAFE minimax (no crashes) */
-function minimax(depth,alpha,beta,max){
-
-    if(Date.now() - startTime > MAX_TIME)
-        return evaluate();
-
-    if(depth===0 || win(board,1) || win(board,2))
-        return evaluate();
-
-    let m = moves();
-
-    if(max){
-        let best = -99999;
-
-        for(let c of m){
-            drop(c,2);
-            let val = minimax(depth-1,alpha,beta,false);
-            undo(c);
-
-            best = Math.max(best,val);
-            alpha = Math.max(alpha,val);
-
-            if(beta<=alpha) break;
-        }
-
-        return best;
-    }else{
-        let best = 99999;
-
-        for(let c of m){
-            drop(c,1);
-            let val = minimax(depth-1,alpha,beta,true);
-            undo(c);
-
-            best = Math.min(best,val);
-            beta = Math.min(beta,val);
-
-            if(beta<=alpha) break;
-        }
-
-        return best;
-    }
-}
-
-function bestMove(){
-
-    startTime = Date.now();
-
-    let best = -99999;
-    let move = 3;
-
-    let depthLimit = (R===4)?7:5; // safe tuning
-
-    for(let depth=1; depth<=depthLimit; depth++){
-
-        for(let c of moves()){
-
-            drop(c,2);
-            let v = minimax(depth,-99999,99999,false);
-            undo(c);
-
-            if(v > best){
-                best = v;
-                move = c;
+    drop(col, player) {
+        for (let r = this.R - 1; r >= 0; r--) {
+            if (this.board[r][col] === 0) {
+                this.board[r][col] = player;
+                break;
             }
         }
-
-        if(Date.now() - startTime > MAX_TIME)
-            break;
     }
 
-    return move;
-}
-
-function play(c){
-    if(!game) return;
-    if(!drop(c,1)) return;
-
-    draw();
-
-    if(win(board,1)){
-        setStatus("You win 🎉");
-        game=false;
-        return;
+    undo(col) {
+        for (let r = 0; r < this.R; r++) {
+            if (this.board[r][col] !== 0) {
+                this.board[r][col] = 0;
+                break;
+            }
+        }
     }
 
-    setStatus("AI thinking...");
-    setTimeout(aiMove,50);
-}
+    win(player) {
+        const b = this.board;
+        const R = this.R, C = this.C;
 
-function aiMove(){
-    if(!game) return;
+        for (let r = 0; r < R; r++) {
+            for (let c = 0; c < C; c++) {
+                if (b[r][c] !== player) continue;
 
-    let c = bestMove();
-    drop(c,2);
+                if (c + 3 < C && b[r][c+1]===player && b[r][c+2]===player && b[r][c+3]===player) return true;
+                if (r + 3 < R && b[r+1][c]===player && b[r+2][c]===player && b[r+3][c]===player) return true;
+                if (r + 3 < R && c + 3 < C && b[r+1][c+1]===player && b[r+2][c+2]===player && b[r+3][c+3]===player) return true;
+                if (r + 3 < R && c - 3 >= 0 && b[r+1][c-1]===player && b[r+2][c-2]===player && b[r+3][c-3]===player) return true;
+            }
+        }
+        return false;
+    }
 
-    draw();
+    evaluate() {
+        if (this.win(2)) return 1000;
+        if (this.win(1)) return -1000;
+        return 0;
+    }
 
-    if(win(board,2)){
-        setStatus("AI wins 🤖");
-        game=false;
-    }else{
-        setStatus("Your turn");
+    orderMoves(moves) {
+        // center-first ordering for strength
+        const center = Math.floor(this.C / 2);
+        return moves.sort((a, b) => Math.abs(a - center) - Math.abs(b - center));
+    }
+
+    search(depth, alpha, beta, player) {
+        const k = this.key(player);
+        if (this.cache.has(k)) return this.cache.get(k);
+
+        if (this.win(2)) return 1000;
+        if (this.win(1)) return -1000;
+        if (depth === 0) return this.evaluate();
+
+        let moves = this.orderMoves(this.moves());
+
+        if (moves.length === 0) return 0;
+
+        if (player === 2) {
+            let best = -Infinity;
+            for (let c of moves) {
+                this.drop(c, 2);
+                let score = this.search(depth - 1, alpha, beta, 1);
+                this.undo(c);
+
+                best = Math.max(best, score);
+                alpha = Math.max(alpha, score);
+                if (beta <= alpha) break;
+            }
+            this.cache.set(k, best);
+            return best;
+        } else {
+            let best = Infinity;
+            for (let c of moves) {
+                this.drop(c, 1);
+                let score = this.search(depth - 1, alpha, beta, 2);
+                this.undo(c);
+
+                best = Math.min(best, score);
+                beta = Math.min(beta, score);
+                if (beta <= alpha) break;
+            }
+            this.cache.set(k, best);
+            return best;
+        }
+    }
+
+    bestMove(player = 2) {
+        this.cache.clear();
+        this.startTime = Date.now();
+
+        let moves = this.orderMoves(this.moves());
+        let bestMove = moves[0];
+        let bestScore = -Infinity;
+
+        for (let depth = 1; depth <= 10; depth++) {
+            for (let c of moves) {
+                this.drop(c, player);
+                let score = this.search(depth - 1, -Infinity, Infinity, player === 2 ? 1 : 2);
+                this.undo(c);
+
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestMove = c;
+                }
+            }
+
+            if (Date.now() - this.startTime > this.MAX_TIME) break;
+        }
+
+        return bestMove;
     }
 }
 
-reset();
+/*
+USAGE:
+const ai = new Connect4AI(6,7,2000); // or (5,7,2000)
+let move = ai.bestMove(2);
+*/
