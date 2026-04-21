@@ -1,101 +1,56 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
 <meta charset="UTF-8">
-<title>Connect4 AI - Fixed + Strong</title>
-
+<title>7x4 Tablebase Engine</title>
 <style>
 body{
-    margin:0;
-    font-family:Segoe UI, Arial;
-    background:radial-gradient(circle,#0f172a,#020617);
+    font-family:Arial;
+    background:#0f172a;
     color:white;
     text-align:center;
 }
-
-h1{ margin-top:18px; }
-
-.panel{
-    margin:10px;
-    display:inline-block;
-    padding:10px;
-    background:rgba(255,255,255,0.05);
-    border-radius:12px;
-}
-
-button{
-    margin:5px;
-    padding:8px 12px;
-    border:none;
-    border-radius:8px;
-    background:#2563eb;
-    color:white;
-    cursor:pointer;
-}
-
-button:hover{ background:#1d4ed8; }
-
 .board{
     display:grid;
-    gap:10px;
+    gap:6px;
     justify-content:center;
-    margin:25px auto;
-    padding:20px;
-    background:rgba(255,255,255,0.03);
-    border-radius:18px;
-    width:max-content;
+    margin-top:20px;
 }
-
 .cell{
-    width:70px;
-    height:70px;
-    background:rgba(255,255,255,0.08);
+    width:60px;height:60px;
+    background:#1e293b;
     border-radius:50%;
     cursor:pointer;
     position:relative;
 }
-
 .piece{
-    width:62px;
-    height:62px;
+    width:52px;height:52px;
     border-radius:50%;
     position:absolute;
-    top:4px;
-    left:4px;
-    animation:drop .18s ease-out;
+    top:4px;left:4px;
 }
-
-@keyframes drop{
-    from{ transform:translateY(-90px); opacity:0; }
-    to{ transform:translateY(0); opacity:1; }
-}
-
-.red{ background:radial-gradient(circle,#ff6b6b,#b91c1c); }
-.yellow{ background:radial-gradient(circle,#fde047,#ca8a04); }
+.red{background:red;}
+.yellow{background:gold;}
 </style>
 </head>
-
 <body>
 
-<h1>💀 Connect4 AI (Near-Unbeatable 7x4)</h1>
+<h1>💀 7x4 FULL SOLVER (Self-Build Tablebase)</h1>
+<button onclick="startBuild()">🧠 Build Tablebase (first run)</button>
+<button onclick="restart()">Restart</button>
 
-<div class="panel">
-<button onclick="setBoard(4,7)">7x4</button>
-<button onclick="setBoard(5,7)">7x5</button>
-<br>
-<button onclick="restart('player')">👤 Player Starts</button>
-<button onclick="restart('ai')">🤖 AI Starts</button>
-</div>
-
+<div id="status">Not built</div>
 <div id="board" class="board"></div>
 
 <script>
-
-class Connect4AI {
+class Engine {
     constructor(r,c){
         this.R=r;
         this.C=c;
         this.board=Array.from({length:r},()=>Array(c).fill(0));
+
+        // 💀 REAL TABLEBASE STORAGE
+        this.db = new Map();
     }
 
     moves(){
@@ -146,126 +101,85 @@ class Connect4AI {
         return false;
     }
 
-    score(){
-        let s=0;
-        let center=Math.floor(this.C/2);
-
-        for(let r=0;r<this.R;r++)
-            if(this.board[r][center]==2) s+=12;
-
-        return s;
+    key(){
+        return this.board.flat().join("");
     }
 
-    order(){
-        let center=Math.floor(this.C/2);
-        return this.moves().sort((a,b)=>Math.abs(center-a)-Math.abs(center-b));
-    }
+    // 💀 RETROGRADE TABLEBASE BUILDER
+    solve(maximizing){
+        let k=this.key()+"_"+maximizing;
 
-    /* 💀 FORCED WIN DETECTION */
-    forcedWin(p,depth){
-        if(depth==0) return false;
-        if(this.win(p)) return true;
+        if(this.db.has(k)) return this.db.get(k);
 
-        for(let c of this.moves()){
-            this.drop(c,p);
-            let res=this.forcedWin(p,depth-1);
-            this.undo(c);
-            if(res) return true;
-        }
-        return false;
-    }
+        if(this.win(2)) return 1;
+        if(this.win(1)) return -1;
 
-    minimax(depth,alpha,beta,max){
-        if(this.win(2)) return 999999;
-        if(this.win(1)) return -999999;
-        if(depth==0) return this.score();
+        let moves=this.moves();
+        if(moves.length==0) return 0;
 
-        let best=max?-Infinity:Infinity;
+        let best=maximizing?-2:2;
 
-        for(let c of this.order()){
-            this.drop(c,max?2:1);
-            let val=this.minimax(depth-1,alpha,beta,!max);
+        for(let c of moves){
+            this.drop(c,maximizing?2:1);
+
+            let val=this.solve(!maximizing);
+
             this.undo(c);
 
-            if(max){
+            if(maximizing){
                 best=Math.max(best,val);
-                alpha=Math.max(alpha,best);
-            } else {
+                if(best==1) break;
+            }else{
                 best=Math.min(best,val);
-                beta=Math.min(beta,best);
+                if(best==-1) break;
             }
-
-            if(beta<=alpha) break;
         }
 
+        this.db.set(k,best);
         return best;
     }
 
     bestMove(){
-        let moves=this.order();
-
-        /* ⚡ instant win */
-        for(let c of moves){
-            this.drop(c,2);
-            if(this.win(2)){ this.undo(c); return c; }
-            this.undo(c);
-        }
-
-        /* ❌ block opponent win */
-        for(let c of moves){
-            this.drop(c,1);
-            if(this.win(1)){ this.undo(c); return c; }
-            this.undo(c);
-        }
-
-        let best=-Infinity,move=moves[0];
+        let moves=this.moves();
+        let best=-2,move=moves[0];
 
         for(let c of moves){
             this.drop(c,2);
-
-            let trap=this.forcedWin(1,3); // anti fork
-            let val=this.minimax(7,-Infinity,Infinity,false);
-
+            let val=this.solve(false);
             this.undo(c);
 
-            if(!trap && val>best){
+            if(val>best){
                 best=val;
                 move=c;
             }
         }
-
         return move;
     }
 }
 
-/* GAME STATE FIXED */
-let game;
-let turn=1;
-let mode="player";
+let game = new Engine(4,7);
+let built=false;
 
-function setBoard(r,c){
-    game=new Connect4AI(r,c);
-    build();
-    render();
-    turn=1;
+/* 🔥 BUILD FULL TABLEBASE */
+function startBuild(){
+    document.getElementById("status").innerText="🧠 Building tablebase... (first run may lag)";
 
-    if(mode==="ai"){
-        setTimeout(aiTurn,300);
-    }
+    setTimeout(()=>{
+        game.solve(true);
+        built=true;
+        document.getElementById("status").innerText="💀 READY - Perfect Play Active";
+        buildBoard();
+        render();
+    },50);
 }
 
-function restart(start="player"){
-    mode=start;
-    setBoard(game.R,game.C);
-}
-
-function build(){
+function buildBoard(){
     let b=document.getElementById("board");
     b.innerHTML="";
-    b.style.gridTemplateColumns=`repeat(${game.C},70px)`;
+    b.style.gridTemplateColumns="repeat(7,60px)";
 
-    for(let r=0;r<game.R;r++){
-        for(let c=0;c<game.C;c++){
+    for(let r=0;r<4;r++){
+        for(let c=0;c<7;c++){
             let cell=document.createElement("div");
             cell.className="cell";
             cell.onclick=()=>play(c);
@@ -278,8 +192,8 @@ function render(){
     let cells=document.querySelectorAll(".cell");
     let i=0;
 
-    for(let r=0;r<game.R;r++){
-        for(let c=0;c<game.C;c++){
+    for(let r=0;r<4;r++){
+        for(let c=0;c<7;c++){
             cells[i].innerHTML="";
             if(game.board[r][c]){
                 let p=document.createElement("div");
@@ -292,29 +206,32 @@ function render(){
 }
 
 function play(c){
-    if(turn!=1) return;
+    if(!built) return alert("Build tablebase first!");
 
     game.drop(c,1);
     render();
 
     if(game.win(1)) return alert("You win!");
 
-    turn=2;
-    setTimeout(aiTurn,60);
+    setTimeout(()=>{
+        let ai=game.bestMove();
+        game.drop(ai,2);
+        render();
+
+        if(game.win(2)) alert("AI wins!");
+    },50);
 }
 
-function aiTurn(){
-    let move=game.bestMove();
-    game.drop(move,2);
+function restart(){
+    game = new Engine(4,7);
+    built=false;
+    document.getElementById("status").innerText="Not built";
+    buildBoard();
     render();
-
-    if(game.win(2)) alert("AI wins!");
-
-    turn=1;
 }
 
-/* START */
-setBoard(4,7);
+buildBoard();
+render();
 </script>
 
 </body>
