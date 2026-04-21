@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Connect4 7x4</title>
+<title>Connect4 7x4 Pro</title>
 
 <style>
 body{
@@ -17,8 +17,14 @@ body{
   font-family:Arial;
 }
 
-h2{ margin-bottom:10px; }
+h2{margin:10px 0 5px}
 
+#status{
+  margin-bottom:10px;
+  opacity:0.9;
+}
+
+/* controls */
 .controls{
   display:flex;
   gap:10px;
@@ -26,7 +32,7 @@ h2{ margin-bottom:10px; }
 }
 
 select,button{
-  padding:10px;
+  padding:10px 12px;
   border-radius:8px;
   border:none;
   background:#2a3160;
@@ -34,38 +40,54 @@ select,button{
   cursor:pointer;
 }
 
+/* board */
 #board{
   display:grid;
-  grid-template-columns:repeat(7,55px);
+  grid-template-columns:repeat(7,52px);
   gap:6px;
   padding:12px;
   background:#151a33;
-  border-radius:12px;
-  box-shadow:0 10px 25px rgba(0,0,0,0.4);
+  border-radius:14px;
+  box-shadow:0 12px 30px rgba(0,0,0,0.5);
 }
 
+/* cells */
 .cell{
-  width:55px;
-  height:55px;
+  width:52px;
+  height:52px;
   border-radius:50%;
   background:#22284a;
+  transition:0.15s;
+  cursor:pointer;
 }
 
+/* hover feel */
+.cell:hover{
+  transform:scale(1.08);
+  filter:brightness(1.2);
+}
+
+/* pieces */
 .p1{background:#ff4d4d;}
 .p2{background:#ffd24d;}
+
+.col-hover{
+  outline:2px solid rgba(255,255,255,0.15);
+}
 </style>
 </head>
 
 <body>
 
 <h2>Connect4 7×4</h2>
+<div id="status">Choose starter and press Start</div>
 
 <div class="controls">
   <select id="starter">
     <option value="player">You start</option>
     <option value="ai">AI starts</option>
   </select>
-  <button onclick="reset()">Start</button>
+  <button onclick="reset()">Start / Restart</button>
 </div>
 
 <div id="board"></div>
@@ -74,12 +96,19 @@ select,button{
 const R=4,C=7
 let b=[],game=false
 
+function setStatus(t){
+ document.getElementById("status").innerText=t
+}
+
 function reset(){
  b=Array.from({length:R},()=>Array(C).fill(0))
  game=true
  draw()
 
+ setStatus("Your turn")
+
  if(document.getElementById("starter").value==="ai"){
+  setStatus("AI thinking...")
   setTimeout(aiMove,300)
  }
 }
@@ -98,6 +127,7 @@ function draw(){
  }
 }
 
+/* drop piece */
 function drop(col,p,board=b){
  for(let r=R-1;r>=0;r--){
   if(board[r][col]==0){
@@ -108,6 +138,7 @@ function drop(col,p,board=b){
  return false
 }
 
+/* win check */
 function win(board,p){
  for(let r=0;r<R;r++)
  for(let c=0;c<C-3;c++)
@@ -128,20 +159,22 @@ function win(board,p){
  return false
 }
 
-function copy(board){
- return board.map(r=>[...r])
+function copy(b){
+ return b.map(r=>[...r])
 }
 
 function moves(board){
  return [...Array(C).keys()].filter(c=>board[0][c]==0)
 }
 
+/* better scoring */
 function score(board){
  if(win(board,2)) return 100
  if(win(board,1)) return -100
  return 0
 }
 
+/* improved minimax */
 function minimax(board,depth,alpha,beta,max){
  if(depth==0 || win(board,1) || win(board,2))
   return score(board)
@@ -171,6 +204,7 @@ function minimax(board,depth,alpha,beta,max){
  }
 }
 
+/* AI move */
 function bestMove(){
  let m=moves(b)
  let best=-999,move=m[0]
@@ -178,7 +212,7 @@ function bestMove(){
  for(let c of m){
   let nb=copy(b)
   drop(c,2,nb)
-  let val=minimax(nb,4,-999,999,false)
+  let val=minimax(nb,5,-999,999,false)
 
   if(val>best){
    best=val
@@ -188,20 +222,24 @@ function bestMove(){
  return move
 }
 
+/* player */
 function play(c){
  if(!game) return
  if(!drop(c,1)) return
 
+ setStatus("AI thinking...")
+
  if(win(b,1)){
   draw()
-  alert("You win")
+  setStatus("You win 🎉")
   game=false
   return
  }
 
- aiMove()
+ setTimeout(aiMove,200)
 }
 
+/* AI */
 function aiMove(){
  if(!game) return
 
@@ -211,8 +249,10 @@ function aiMove(){
  draw()
 
  if(win(b,2)){
-  alert("AI wins")
+  setStatus("AI wins 🤖")
   game=false
+ }else{
+  setStatus("Your turn")
  }
 }
 
