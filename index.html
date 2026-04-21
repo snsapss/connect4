@@ -2,82 +2,60 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Connect4 AI - PC Edition</title>
+<title>Connect4 AI PC+</title>
 
 <style>
 body{
     margin:0;
     font-family: "Segoe UI", Arial;
-    background: radial-gradient(circle at top, #111827, #020617);
+    background: radial-gradient(circle at top, #0f172a, #020617);
     color:white;
     text-align:center;
 }
 
-/* HEADER */
-h1{
-    margin-top:20px;
-    font-weight:600;
-    letter-spacing:1px;
-}
+h1{ margin-top:20px; }
 
-/* PANEL */
 .panel{
     margin:10px auto;
-    padding:10px 20px;
+    padding:12px;
+    display:inline-block;
     background:rgba(255,255,255,0.05);
     border:1px solid rgba(255,255,255,0.1);
-    display:inline-block;
     border-radius:12px;
-    backdrop-filter: blur(10px);
 }
 
 button{
     background:#2563eb;
-    border:none;
-    padding:8px 14px;
-    margin:4px;
     color:white;
+    border:none;
+    padding:8px 12px;
+    margin:4px;
     border-radius:8px;
     cursor:pointer;
-    transition:0.2s;
 }
 
-button:hover{
-    background:#1d4ed8;
-    transform:scale(1.05);
-}
+button:hover{ background:#1d4ed8; }
 
-/* BOARD */
 .board{
     display:grid;
     gap:10px;
     justify-content:center;
-    margin:30px auto;
+    margin:25px auto;
     padding:20px;
     background:rgba(255,255,255,0.03);
-    border-radius:20px;
-    border:1px solid rgba(255,255,255,0.08);
+    border-radius:18px;
     width:max-content;
 }
 
-/* CELL */
 .cell{
     width:70px;
     height:70px;
     background:rgba(255,255,255,0.08);
     border-radius:50%;
-    cursor:pointer;
     position:relative;
-    transition:0.15s;
-    box-shadow: inset 0 0 10px rgba(0,0,0,0.5);
+    cursor:pointer;
 }
 
-.cell:hover{
-    background:rgba(255,255,255,0.15);
-    transform:scale(1.05);
-}
-
-/* PIECES */
 .piece{
     width:62px;
     height:62px;
@@ -85,8 +63,7 @@ button:hover{
     position:absolute;
     top:4px;
     left:4px;
-    animation:drop 0.18s ease-out;
-    box-shadow:0 5px 15px rgba(0,0,0,0.4);
+    animation:drop .18s ease-out;
 }
 
 @keyframes drop{
@@ -94,47 +71,59 @@ button:hover{
     to{ transform:translateY(0); opacity:1; }
 }
 
-.red{
-    background: radial-gradient(circle at 30% 30%, #ff6b6b, #b91c1c);
-}
-
-.yellow{
-    background: radial-gradient(circle at 30% 30%, #fde047, #ca8a04);
-}
-
-/* COLUMN HOVER PREVIEW */
-.column-hover{
-    position:absolute;
-    width:70px;
-    height:420px;
-    background:rgba(59,130,246,0.08);
-    border-radius:20px;
-    pointer-events:none;
-    display:none;
-}
+.red{ background:radial-gradient(circle,#ff6b6b,#b91c1c); }
+.yellow{ background:radial-gradient(circle,#fde047,#ca8a04); }
 </style>
 </head>
 
 <body>
 
-<h1>💻 Connect4 AI - PC Edition</h1>
+<h1>🎮 Connect4 AI + Sound</h1>
 
 <div class="panel">
 <button onclick="setBoard(4,7)">7x4</button>
 <button onclick="setBoard(5,7)">7x5</button>
-<button onclick="restart()">Restart</button>
+<br>
+<button onclick="restart('player')">👤 Player Starts</button>
+<button onclick="restart('ai')">🤖 AI Starts</button>
 </div>
 
 <div id="board" class="board"></div>
-<div id="hover" class="column-hover"></div>
 
 <script>
+
+/* 🔊 SOUND ENGINE */
+const sound = {
+    ctx:null,
+
+    init(){
+        if(!this.ctx) this.ctx = new AudioContext();
+    },
+
+    beep(freq,dur){
+        this.init();
+        let o=this.ctx.createOscillator();
+        let g=this.ctx.createGain();
+        o.frequency.value=freq;
+        o.connect(g);
+        g.connect(this.ctx.destination);
+        g.start();
+
+        g.gain.value=0.08;
+        setTimeout(()=>o.stop(),dur);
+    },
+
+    drop(){ this.beep(220,80); },
+    ai(){ this.beep(160,80); },
+    win(){ this.beep(520,200); }
+};
+
+/* 🔥 AI */
 class Connect4AI {
     constructor(r,c){
         this.R=r;
         this.C=c;
         this.board=Array.from({length:r},()=>Array(c).fill(0));
-        this.tt=new Map();
     }
 
     moves(){
@@ -155,7 +144,7 @@ class Connect4AI {
 
     undo(c){
         for(let r=0;r<this.R;r++){
-            if(this.board[r][c]!=0){
+            if(this.board[r][c]){
                 this.board[r][c]=0;
                 break;
             }
@@ -245,17 +234,26 @@ class Connect4AI {
     }
 }
 
-/* GAME */
+/* GAME STATE */
 let game;
 let turn=1;
+let mode="player";
 
-/* UI HOVER */
-let hover=document.getElementById("hover");
-
+/* UI */
 function setBoard(r,c){
     game=new Connect4AI(r,c);
     build();
     render();
+}
+
+function restart(start="player"){
+    mode=start;
+    setBoard(game.R,game.C);
+    turn=1;
+
+    if(mode==="ai"){
+        setTimeout(aiTurn,300);
+    }
 }
 
 function build(){
@@ -267,19 +265,7 @@ function build(){
         for(let c=0;c<game.C;c++){
             let cell=document.createElement("div");
             cell.className="cell";
-
             cell.onclick=()=>play(c);
-
-            cell.onmouseenter=(e)=>{
-                hover.style.display="block";
-                hover.style.left=cell.getBoundingClientRect().left+"px";
-                hover.style.top="100px";
-            };
-
-            cell.onmouseleave=()=>{
-                hover.style.display="none";
-            };
-
             b.appendChild(cell);
         }
     }
@@ -302,23 +288,36 @@ function render(){
     }
 }
 
+/* PLAY */
 function play(c){
+    if(turn!=1) return;
+
     game.drop(c,1);
+    sound.drop();
     render();
 
-    if(game.win(1)) return alert("You win!");
+    if(game.win(1)){
+        sound.win();
+        return alert("You win!");
+    }
 
-    setTimeout(()=>{
-        let ai=game.bestMove();
-        game.drop(ai,2);
-        render();
-
-        if(game.win(2)) alert("AI wins!");
-    },80);
+    turn=2;
+    setTimeout(aiTurn,80);
 }
 
-function restart(){
-    setBoard(game.R,game.C);
+/* AI */
+function aiTurn(){
+    let move=game.bestMove();
+    game.drop(move,2);
+    sound.ai();
+    render();
+
+    if(game.win(2)){
+        sound.win();
+        alert("AI wins!");
+    }
+
+    turn=1;
 }
 
 /* START */
