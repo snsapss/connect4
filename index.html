@@ -1,88 +1,170 @@
-let cache = new Map();
+let R = 4;
+const C = 7;
+let board = [];
+let game = true;
 
-function bestMove(){
-    if(R === 4) return perfectMove();
-    return timedMove();
+let startTime;
+const MAX_TIME = 120;
+
+const boardEl = document.getElementById("board");
+const statusEl = document.getElementById("status");
+const modeEl = document.getElementById("mode");
+const starterEl = document.getElementById("starter");
+
+function setStatus(t){ statusEl.innerText = t; }
+
+function reset(){
+    R = parseInt(modeEl.value);
+
+    board = Array.from({length:R},()=>Array(C).fill(0));
+    game = true;
+
+    boardEl.style.gridTemplateColumns = `repeat(${C},52px)`;
+
+    draw();
+
+    setStatus("Your turn");
+
+    if(starterEl.value === "ai"){
+        setStatus("AI thinking...");
+        setTimeout(aiMove,100);
+    }
 }
 
-function perfectMove(){
-    cache.clear();
+function draw(){
+    boardEl.innerHTML = "";
+    for(let r=0;r<R;r++){
+        for(let c=0;c<C;c++){
+            let d = document.createElement("div");
+            d.className = "cell";
 
-    let best = -2;
-    let move = moves()[0];
+            if(board[r][c]===1) d.classList.add("p1");
+            if(board[r][c]===2) d.classList.add("p2");
 
-    for(let c of moves()){
-        drop(c,2);
+            d.onclick = ()=>play(c);
 
-        let score = perfectSearch(1);
-
-        undo(c);
-
-        if(score > best){
-            best = score;
-            move = c;
+            boardEl.appendChild(d);
         }
     }
-
-    return move;
 }
 
-function boardKey(){
-    return board.flat().join("");
+function drop(col,p,b=board){
+    for(let r=R-1;r>=0;r--){
+        if(b[r][col]===0){
+            b[r][col]=p;
+            return true;
+        }
+    }
+    return false;
 }
 
-function perfectSearch(player){
+function undo(col,b=board){
+    for(let r=0;r<R;r++){
+        if(b[r][col]!==0){
+            b[r][col]=0;
+            return;
+        }
+    }
+}
 
-    let k = boardKey();
+function win(b,p){
 
-    if(cache.has(k))
-        return cache.get(k);
+    for(let r=0;r<R;r++)
+    for(let c=0;c<C-3;c++)
+    if([0,1,2,3].every(i=>b[r][c+i]===p)) return true;
 
-    if(win(board,2)) return 1;
-    if(win(board,1)) return -1;
+    for(let c=0;c<C;c++)
+    for(let r=0;r<R-3;r++)
+    if([0,1,2,3].every(i=>b[r+i][c]===p)) return true;
+
+    for(let r=0;r<R-3;r++)
+    for(let c=0;c<C-3;c++)
+    if([0,1,2,3].every(i=>b[r+i][c+i]===p)) return true;
+
+    for(let r=3;r<R;r++)
+    for(let c=0;c<C-3;c++)
+    if([0,1,2,3].every(i=>b[r-i][c+i]===p)) return true;
+
+    return false;
+}
+
+function moves(){
+    return [3,2,4,1,5,0,6].filter(c=>board[0][c]===0);
+}
+
+/* simple strong evaluation */
+function evaluate(){
+    if(win(board,2)) return 10000;
+    if(win(board,1)) return -10000;
+
+    let score = 0;
+
+    for(let r=0;r<R;r++){
+        if(board[r][3]===2) score += 3;
+    }
+
+    return score;
+}
+
+/* SAFE minimax (no crashes) */
+function minimax(depth,alpha,beta,max){
+
+    if(Date.now() - startTime > MAX_TIME)
+        return evaluate();
+
+    if(depth===0 || win(board,1) || win(board,2))
+        return evaluate();
 
     let m = moves();
 
-    if(!m.length) return 0;
+    if(max){
+        let best = -99999;
 
-    let best = player === 2 ? -2 : 2;
+        for(let c of m){
+            drop(c,2);
+            let val = minimax(depth-1,alpha,beta,false);
+            undo(c);
 
-    for(let c of m){
+            best = Math.max(best,val);
+            alpha = Math.max(alpha,val);
 
-        drop(c,player);
-
-        let score = perfectSearch(player === 2 ? 1 : 2);
-
-        undo(c);
-
-        if(player === 2){
-            best = Math.max(best,score);
-            if(best === 1) break;
-        }else{
-            best = Math.min(best,score);
-            if(best === -1) break;
+            if(beta<=alpha) break;
         }
-    }
 
-    cache.set(k,best);
-    return best;
+        return best;
+    }else{
+        let best = 99999;
+
+        for(let c of m){
+            drop(c,1);
+            let val = minimax(depth-1,alpha,beta,true);
+            undo(c);
+
+            best = Math.min(best,val);
+            beta = Math.min(beta,val);
+
+            if(beta<=alpha) break;
+        }
+
+        return best;
+    }
 }
 
-function timedMove(){
+function bestMove(){
 
     startTime = Date.now();
 
     let best = -99999;
-    let move = moves()[0];
+    let move = 3;
 
-    for(let depth=1; depth<=10; depth++){
+    let depthLimit = (R===4)?7:5; // safe tuning
+
+    for(let depth=1; depth<=depthLimit; depth++){
 
         for(let c of moves()){
 
             drop(c,2);
-
-            let v = search(depth,-99999,99999,false);
-
+            let v = minimax(depth,-99999,99999,false);
             undo(c);
 
             if(v > best){
@@ -97,3 +179,37 @@ function timedMove(){
 
     return move;
 }
+
+function play(c){
+    if(!game) return;
+    if(!drop(c,1)) return;
+
+    draw();
+
+    if(win(board,1)){
+        setStatus("You win 🎉");
+        game=false;
+        return;
+    }
+
+    setStatus("AI thinking...");
+    setTimeout(aiMove,50);
+}
+
+function aiMove(){
+    if(!game) return;
+
+    let c = bestMove();
+    drop(c,2);
+
+    draw();
+
+    if(win(board,2)){
+        setStatus("AI wins 🤖");
+        game=false;
+    }else{
+        setStatus("Your turn");
+    }
+}
+
+reset();
