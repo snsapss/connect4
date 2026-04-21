@@ -1,96 +1,197 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Connect Solver</title>
+
+<style>
+body{
+margin:0;
+height:100vh;
+display:flex;
+flex-direction:column;
+justify-content:center;
+align-items:center;
+background:#0f1220;
+color:white;
+font-family:Arial;
+}
+
+#status{margin-bottom:8px}
+
+.controls{
+display:flex;
+gap:10px;
+margin-bottom:14px;
+flex-wrap:wrap;
+justify-content:center;
+}
+
+select,button{
+padding:9px 12px;
+border-radius:8px;
+border:none;
+background:#2a3160;
+color:white;
+cursor:pointer;
+}
+
+#board{
+display:grid;
+gap:6px;
+padding:12px;
+background:#151a33;
+border-radius:14px;
+box-shadow:0 12px 30px rgba(0,0,0,.5);
+}
+
+.cell{
+width:52px;
+height:52px;
+border-radius:50%;
+background:#22284a;
+cursor:pointer;
+transition:.15s;
+}
+
+.cell:hover{transform:scale(1.08)}
+
+.p1{background:#ff4d4d;}
+.p2{background:#ffd24d;}
+</style>
+</head>
+
+<body>
+
+<h2>Connect Solver</h2>
+<div id="status">Ready</div>
+
+<div class="controls">
+
+<select id="mode">
+<option value="4">7×4</option>
+<option value="5">7×5</option>
+</select>
+
+<select id="starter">
+<option value="player">You start</option>
+<option value="ai">AI starts</option>
+</select>
+
+<button onclick="reset()">Start</button>
+
+</div>
+
+<div id="board"></div>
+
 <script>
-let R=4
+
 const C=7
-let b=[]
-let game=false
+let R=4
+let board=[]
+let game=true
 let cache=new Map()
 
-function setStatus(t){status.innerText=t}
+const boardEl=document.getElementById("board")
+const statusEl=document.getElementById("status")
+const modeEl=document.getElementById("mode")
+const starterEl=document.getElementById("starter")
+
+function setStatus(t){statusEl.innerText=t}
 
 function reset(){
-R=parseInt(mode.value)
-b=Array.from({length:R},()=>Array(C).fill(0))
-game=true
-cache.clear()
 
-board.style.gridTemplateColumns=`repeat(${C},52px)`
+R=parseInt(modeEl.value)
+
+board=Array.from({length:R},()=>Array(C).fill(0))
+cache.clear()
+game=true
+
+boardEl.style.gridTemplateColumns=`repeat(${C},52px)`
+
 draw()
 
 setStatus("Your turn")
 
-if(starter.value==="ai"){
+if(starterEl.value==="ai"){
 setStatus("AI thinking...")
-setTimeout(aiMove,200)
+setTimeout(aiMove,150)
 }
 }
 
 function draw(){
-board.innerHTML=""
-for(let r=0;r<R;r++)
+boardEl.innerHTML=""
+
+for(let r=0;r<R;r++){
 for(let c=0;c<C;c++){
+
 let d=document.createElement("div")
 d.className="cell"
-if(b[r][c]==1)d.classList.add("p1")
-if(b[r][c]==2)d.classList.add("p2")
+
+if(board[r][c]==1)d.classList.add("p1")
+if(board[r][c]==2)d.classList.add("p2")
+
 d.onclick=()=>play(c)
-board.appendChild(d)
-}
+
+boardEl.appendChild(d)
+
+}}
 }
 
-function drop(col,p,board=b){
-for(let r=R-1;r>=0;r--)
-if(board[r][col]==0){
-board[r][col]=p
+function drop(col,p,b=board){
+for(let r=R-1;r>=0;r--){
+if(b[r][col]==0){
+b[r][col]=p
 return true
-}
+}}
 return false
 }
 
-function win(board,p){
+function win(b,p){
+
 for(let r=0;r<R;r++)
 for(let c=0;c<C-3;c++)
-if([0,1,2,3].every(i=>board[r][c+i]==p))return true
+if([0,1,2,3].every(i=>b[r][c+i]==p))return true
 
 for(let c=0;c<C;c++)
 for(let r=0;r<R-3;r++)
-if([0,1,2,3].every(i=>board[r+i][c]==p))return true
+if([0,1,2,3].every(i=>b[r+i][c]==p))return true
 
 for(let r=0;r<R-3;r++)
 for(let c=0;c<C-3;c++)
-if([0,1,2,3].every(i=>board[r+i][c+i]==p))return true
+if([0,1,2,3].every(i=>b[r+i][c+i]==p))return true
 
 for(let r=3;r<R;r++)
 for(let c=0;c<C-3;c++)
-if([0,1,2,3].every(i=>board[r-i][c+i]==p))return true
+if([0,1,2,3].every(i=>b[r-i][c+i]==p))return true
 
 return false
 }
 
-function copy(x){return x.map(r=>[...r])}
+function copy(b){return b.map(r=>[...r])}
 
-function key(board){
-return board.flat().join("")
+function key(b){return b.flat().join("")}
+
+function moves(b){
+return [3,2,4,1,5,0,6].filter(c=>b[0][c]==0)
 }
 
-function moves(board){
-return [3,2,4,1,5,0,6].filter(c=>board[0][c]==0)
-}
+function minimax(b,player){
 
-function minimax(board,player){
-
-let k=key(board)
+let k=key(b)
 if(cache.has(k))return cache.get(k)
 
-if(win(board,2))return 1
-if(win(board,1))return -1
+if(win(b,2))return 1
+if(win(b,1))return -1
 
-let m=moves(board)
-if(m.length==0)return 0
+let m=moves(b)
+if(!m.length)return 0
 
-let best = player==2 ? -2 : 2
+let best=player==2?-2:2
 
 for(let c of m){
-let nb=copy(board)
+
+let nb=copy(b)
 drop(c,player,nb)
 
 let score=minimax(nb,player==2?1:2)
@@ -102,6 +203,7 @@ if(best==1)break
 best=Math.min(best,score)
 if(best==-1)break
 }
+
 }
 
 cache.set(k,best)
@@ -109,12 +211,14 @@ return best
 }
 
 function bestMove(){
-let m=moves(b)
+
+let m=moves(board)
 let best=-2
 let move=m[0]
 
 for(let c of m){
-let nb=copy(b)
+
+let nb=copy(board)
 drop(c,2,nb)
 
 let score=minimax(nb,1)
@@ -129,11 +233,13 @@ return move
 }
 
 function play(c){
+
 if(!game)return
 if(!drop(c,1))return
 
-if(win(b,1)){
 draw()
+
+if(win(board,1)){
 setStatus("You win 🎉")
 game=false
 return
@@ -144,6 +250,7 @@ setTimeout(aiMove,50)
 }
 
 function aiMove(){
+
 if(!game)return
 
 let c=bestMove()
@@ -151,7 +258,7 @@ drop(c,2)
 
 draw()
 
-if(win(b,2)){
+if(win(board,2)){
 setStatus("AI wins 🤖")
 game=false
 }else{
@@ -160,4 +267,8 @@ setStatus("Your turn")
 }
 
 reset()
+
 </script>
+
+</body>
+</html>
