@@ -2,19 +2,20 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Connect4 AI</title>
+<title>Connect4 AI Impossible</title>
 
 <style>
 body{
     font-family: Arial;
-    background: #0f172a;
-    color: white;
-    text-align: center;
+    background:#0f172a;
+    color:white;
+    text-align:center;
 }
+
+.controls{ margin:10px; }
 
 .board{
     display:grid;
-    grid-template-columns: repeat(7,60px);
     gap:6px;
     justify-content:center;
     margin-top:20px;
@@ -27,6 +28,7 @@ body{
     border-radius:50%;
     cursor:pointer;
     position:relative;
+    overflow:hidden;
 }
 
 .piece{
@@ -34,8 +36,14 @@ body{
     height:52px;
     border-radius:50%;
     position:absolute;
-    top:4px;
+    top:-70px;
     left:4px;
+    animation: drop 0.25s forwards;
+}
+
+@keyframes drop{
+    from{ top:-80px; }
+    to{ top:4px; }
 }
 
 .red{background:red;}
@@ -45,8 +53,13 @@ body{
 
 <body>
 
-<h1>Connect4 AI</h1>
+<h1>Connect4 AI (Impossible Mode)</h1>
+
+<div class="controls">
+<button onclick="setBoard(4,7)">7x4</button>
+<button onclick="setBoard(5,7)">7x5</button>
 <button onclick="restart()">Restart</button>
+</div>
 
 <div id="board" class="board"></div>
 
@@ -56,6 +69,7 @@ class Connect4AI {
         this.R=r;
         this.C=c;
         this.board=Array.from({length:r},()=>Array(c).fill(0));
+        this.tt=new Map(); // transposition table
     }
 
     moves(){
@@ -84,6 +98,10 @@ class Connect4AI {
         }
     }
 
+    key(){
+        return this.board.flat().join("");
+    }
+
     win(p){
         let b=this.board,R=this.R,C=this.C;
 
@@ -107,74 +125,141 @@ class Connect4AI {
         return false;
     }
 
+    // ⚡ strong evaluation
     score(){
-        let score=0;
+        let s=0;
         let center=Math.floor(this.C/2);
 
         for(let r=0;r<this.R;r++){
-            if(this.board[r][center]==2) score+=6;
+            if(this.board[r][center]==2) s+=10;
+        }
+
+        s += this.evalPlayer(2)*1.2;
+        s -= this.evalPlayer(1)*1.4;
+
+        return s;
+    }
+
+    evalPlayer(p){
+        let b=this.board,R=this.R,C=this.C;
+        let score=0;
+
+        const check=(a)=>{
+            let pc=a.filter(x=>x==p).length;
+            let empty=a.filter(x=>x==0).length;
+
+            if(pc==4) return 100000;
+            if(pc==3 && empty==1) return 120;
+            if(pc==2 && empty==2) return 20;
+            return 0;
+        };
+
+        for(let r=0;r<R;r++){
+            for(let c=0;c<C-3;c++)
+                score+=check([b[r][c],b[r][c+1],b[r][c+2],b[r][c+3]]);
+        }
+
+        for(let r=0;r<R-3;r++){
+            for(let c=0;c<C;c++)
+                score+=check([b[r][c],b[r+1][c],b[r+2][c],b[r+3][c]]);
+        }
+
+        for(let r=0;r<R-3;r++){
+            for(let c=0;c<C-3;c++)
+                score+=check([b[r][c],b[r+1][c+1],b[r+2][c+2],b[r+3][c+3]]);
+        }
+
+        for(let r=0;r<R-3;r++){
+            for(let c=3;c<C;c++)
+                score+=check([b[r][c],b[r+1][c-1],b[r+2][c-2],b[r+3][c-3]]);
         }
 
         return score;
     }
 
-    minimax(depth,alpha,beta,maximizing){
-        if(this.win(2)) return 1000;
-        if(this.win(1)) return -1000;
+    orderMoves(){
+        let center=Math.floor(this.C/2);
+        return this.moves().sort((a,b)=>{
+            return Math.abs(center-a)-Math.abs(center-b);
+        });
+    }
+
+    minimax(depth,alpha,beta,max){
+        let k=this.key()+"_"+depth+"_"+max;
+        if(this.tt.has(k)) return this.tt.get(k);
+
+        if(this.win(2)) return 99999;
+        if(this.win(1)) return -99999;
         if(depth==0) return this.score();
 
-        let moves=this.moves();
+        let moves=this.orderMoves();
 
-        if(maximizing){
+        let best = max ? -Infinity : Infinity;
+
+        for(let c of moves){
+            this.drop(c,max?2:1);
+            let val=this.minimax(depth-1,alpha,beta,!max);
+            this.undo(c);
+
+            if(max){
+                best=Math.max(best,val);
+                alpha=Math.max(alpha,best);
+            } else {
+                best=Math.min(best,val);
+                beta=Math.min(beta,best);
+            }
+
+            if(beta<=alpha) break;
+        }
+
+        this.tt.set(k,best);
+        return best;
+    }
+
+    // ⏱ iterative deepening
+    bestMove(timeLimit=600){
+        let start=Date.now();
+        let moves=this.orderMoves();
+
+        let bestMove=moves[0];
+
+        for(let depth=1; depth<=7; depth++){
             let best=-Infinity;
 
             for(let c of moves){
+
+                if(Date.now()-start>timeLimit)
+                    return bestMove;
+
                 this.drop(c,2);
-                best=Math.max(best,this.minimax(depth-1,alpha,beta,false));
+                let val=this.minimax(depth,-Infinity,Infinity,false);
                 this.undo(c);
-                alpha=Math.max(alpha,best);
-                if(beta<=alpha) break;
-            }
-            return best;
-        } else {
-            let best=Infinity;
 
-            for(let c of moves){
-                this.drop(c,1);
-                best=Math.min(best,this.minimax(depth-1,alpha,beta,true));
-                this.undo(c);
-                beta=Math.min(beta,best);
-                if(beta<=alpha) break;
-            }
-            return best;
-        }
-    }
-
-    bestMove(){
-        let moves=this.moves();
-        let best=-Infinity;
-        let move=moves[0];
-
-        for(let c of moves){
-            this.drop(c,2);
-            let val=this.minimax(5,-Infinity,Infinity,false);
-            this.undo(c);
-
-            if(val>best){
-                best=val;
-                move=c;
+                if(val>best){
+                    best=val;
+                    bestMove=c;
+                }
             }
         }
-        return move;
+
+        return bestMove;
     }
 }
 
 let game;
 let turn=1;
 
+function setBoard(r,c){
+    game=new Connect4AI(r,c);
+    createBoard();
+    render();
+    turn=1;
+}
+
 function createBoard(){
     let board=document.getElementById("board");
     board.innerHTML="";
+    board.style.gridTemplateColumns=`repeat(${game.C},60px)`;
 
     for(let r=0;r<game.R;r++){
         for(let c=0;c<game.C;c++){
@@ -221,17 +306,15 @@ function play(c){
         if(game.win(2)) alert("AI wins!");
 
         turn=1;
-    },200);
+    },80);
 }
 
 function restart(){
-    game=new Connect4AI(4,7);
-    turn=1;
-    createBoard();
-    render();
+    setBoard(game.R,game.C);
 }
 
-restart();
+// default
+setBoard(4,7);
 </script>
 
 </body>
