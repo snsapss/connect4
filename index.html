@@ -1,255 +1,189 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Connect4 AI Ultimate</title>
-<style>
-body{
-    margin:0;
-    font-family:Arial;
-    background:linear-gradient(135deg,#0f172a,#1e293b);
-    color:white;
-    display:flex;
-    flex-direction:column;
-    align-items:center;
-}
-
-h1{margin:20px;}
-
-.controls{
-    margin-bottom:10px;
-}
-
-button, select{
-    padding:10px;
-    margin:5px;
-    border:none;
-    border-radius:8px;
-    cursor:pointer;
-}
-
-.board{
-    display:grid;
-    gap:6px;
-    background:#1e40af;
-    padding:10px;
-    border-radius:12px;
-    box-shadow:0 10px 30px rgba(0,0,0,0.5);
-}
-
-.cell{
-    width:60px;
-    height:60px;
-    background:#0f172a;
-    border-radius:50%;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    cursor:pointer;
-    position:relative;
-    overflow:hidden;
-}
-
-.piece{
-    width:52px;
-    height:52px;
-    border-radius:50%;
-    position:absolute;
-    top:-200px;
-    transition:top 0.3s ease;
-}
-
-.red{background:red;}
-.yellow{background:gold;}
-
-.cell:hover{background:#111827;}
-</style>
-</head>
-<body>
-
-<h1>Connect4 AI Ultimate</h1>
-
-<div class="controls">
-<select id="mode">
-<option value="4">7 x 4</option>
-<option value="5" selected>7 x 5</option>
-</select>
-<button onclick="restart()">Restart</button>
-</div>
-
-<div id="board" class="board"></div>
-
-<script>
 class Connect4AI {
-    constructor(rows, cols){
+    constructor(rows, cols) {
         this.R = rows;
         this.C = cols;
-        this.board = Array.from({length:rows},()=>Array(cols).fill(0));
+
+        this.board = Array.from({ length: rows }, () => Array(cols).fill(0));
+
+        this.TT = new Map(); // transposition table
     }
 
-    moves(){
-        let m=[];
-        for(let c=0;c<this.C;c++) if(this.board[0][c]==0) m.push(c);
+    moves() {
+        let m = [];
+        for (let c = 0; c < this.C; c++) {
+            if (this.board[0][c] === 0) m.push(c);
+        }
         return m;
     }
 
-    drop(c,p){
-        for(let r=this.R-1;r>=0;r--){
-            if(this.board[r][c]==0){this.board[r][c]=p;return r;}
+    drop(c, p) {
+        for (let r = this.R - 1; r >= 0; r--) {
+            if (this.board[r][c] === 0) {
+                this.board[r][c] = p;
+                return r;
+            }
         }
         return -1;
     }
 
-    undo(c){
-        for(let r=0;r<this.R;r++) if(this.board[r][c]!=0){this.board[r][c]=0;break;}
+    undo(c) {
+        for (let r = 0; r < this.R; r++) {
+            if (this.board[r][c] !== 0) {
+                this.board[r][c] = 0;
+                break;
+            }
+        }
     }
 
-    win(p){
-        let b=this.board,R=this.R,C=this.C;
-        for(let r=0;r<R;r++)for(let c=0;c<C;c++){
-            if(b[r][c]!=p) continue;
-            if(c+3<C && b[r][c+1]==p && b[r][c+2]==p && b[r][c+3]==p) return true;
-            if(r+3<R && b[r+1][c]==p && b[r+2][c]==p && b[r+3][c]==p) return true;
-            if(r+3<R && c+3<C && b[r+1][c+1]==p && b[r+2][c+2]==p && b[r+3][c+3]==p) return true;
-            if(r+3<R && c-3>=0 && b[r+1][c-1]==p && b[r+2][c-2]==p && b[r+3][c-3]==p) return true;
+    win(p) {
+        let b = this.board, R = this.R, C = this.C;
+
+        for (let r = 0; r < R; r++) {
+            for (let c = 0; c < C; c++) {
+                if (b[r][c] !== p) continue;
+
+                if (c + 3 < C &&
+                    b[r][c + 1] === p &&
+                    b[r][c + 2] === p &&
+                    b[r][c + 3] === p) return true;
+
+                if (r + 3 < R &&
+                    b[r + 1][c] === p &&
+                    b[r + 2][c] === p &&
+                    b[r + 3][c] === p) return true;
+
+                if (r + 3 < R && c + 3 < C &&
+                    b[r + 1][c + 1] === p &&
+                    b[r + 2][c + 2] === p &&
+                    b[r + 3][c + 3] === p) return true;
+
+                if (r + 3 < R && c - 3 >= 0 &&
+                    b[r + 1][c - 1] === p &&
+                    b[r + 2][c - 2] === p &&
+                    b[r + 3][c - 3] === p) return true;
+            }
         }
         return false;
     }
 
-    scoreWindow(arr,p){
-        let opp = p==1?2:1;
-        let score=0;
-        let countP=arr.filter(x=>x==p).length;
-        let countO=arr.filter(x=>x==opp).length;
-        if(countP==4) score+=100;
-        else if(countP==3 && countO==0) score+=5;
-        else if(countP==2 && countO==0) score+=2;
-        if(countO==3 && countP==0) score-=4;
-        return score;
-    }
+    score() {
+        let score = 0;
+        let b = this.board, R = this.R, C = this.C;
 
-    evaluate(){
-        let score=0;
-        let b=this.board,R=this.R,C=this.C;
-        for(let r=0;r<R;r++)for(let c=0;c<C-3;c++)
-            score+=this.scoreWindow([b[r][c],b[r][c+1],b[r][c+2],b[r][c+3]],2);
+        let center = Math.floor(C / 2);
 
-        for(let c=0;c<C;c++)for(let r=0;r<R-3;r++)
-            score+=this.scoreWindow([b[r][c],b[r+1][c],b[r+2][c],b[r+3][c]],2);
+        // center control (VERY important)
+        for (let r = 0; r < R; r++) {
+            if (b[r][center] === 2) score += 6;
+            if (b[r][center] === 1) score -= 6;
+        }
 
-        return score;
-    }
+        // window scoring
+        const evalWindow = (arr) => {
+            let ai = arr.filter(x => x === 2).length;
+            let hu = arr.filter(x => x === 1).length;
 
-    minimax(depth,alpha,beta,player){
-        if(depth==0 || this.win(1) || this.win(2))
-            return this.evaluate();
+            if (ai === 4) return 1000;
+            if (ai === 3 && hu === 0) return 50;
+            if (ai === 2 && hu === 0) return 10;
 
-        let moves=this.moves();
-        if(player==2){
-            let best=-1e9;
-            for(let c of moves){
-                this.drop(c,2);
-                let val=this.minimax(depth-1,alpha,beta,1);
-                this.undo(c);
-                best=Math.max(best,val);
-                alpha=Math.max(alpha,best);
-                if(beta<=alpha) break;
+            if (hu === 3 && ai === 0) return -80;
+
+            return 0;
+        };
+
+        for (let r = 0; r < R; r++) {
+            for (let c = 0; c < C - 3; c++) {
+                score += evalWindow([b[r][c], b[r][c + 1], b[r][c + 2], b[r][c + 3]]);
             }
+        }
+
+        for (let c = 0; c < C; c++) {
+            for (let r = 0; r < R - 3; r++) {
+                score += evalWindow([b[r][c], b[r + 1][c], b[r + 2][c], b[r + 3][c]]);
+            }
+        }
+
+        return score;
+    }
+
+    key() {
+        return this.board.map(r => r.join("")).join("|");
+    }
+
+    orderMoves(moves) {
+        let center = Math.floor(this.C / 2);
+        return moves.sort((a, b) =>
+            Math.abs(a - center) - Math.abs(b - center)
+        );
+    }
+
+    minimax(depth, alpha, beta, maximizing) {
+        let key = this.key() + depth + maximizing;
+
+        if (this.TT.has(key)) return this.TT.get(key);
+
+        if (this.win(2)) return 100000;
+        if (this.win(1)) return -100000;
+
+        if (depth === 0) return this.score();
+
+        let moves = this.orderMoves(this.moves());
+
+        if (maximizing) {
+            let best = -Infinity;
+
+            for (let c of moves) {
+                this.drop(c, 2);
+                let val = this.minimax(depth - 1, alpha, beta, false);
+                this.undo(c);
+
+                best = Math.max(best, val);
+                alpha = Math.max(alpha, best);
+
+                if (beta <= alpha) break;
+            }
+
+            this.TT.set(key, best);
             return best;
         } else {
-            let best=1e9;
-            for(let c of moves){
-                this.drop(c,1);
-                let val=this.minimax(depth-1,alpha,beta,2);
+            let best = Infinity;
+
+            for (let c of moves) {
+                this.drop(c, 1);
+                let val = this.minimax(depth - 1, alpha, beta, true);
                 this.undo(c);
-                best=Math.min(best,val);
-                beta=Math.min(beta,best);
-                if(beta<=alpha) break;
+
+                best = Math.min(best, val);
+                beta = Math.min(beta, best);
+
+                if (beta <= alpha) break;
             }
+
+            this.TT.set(key, best);
             return best;
         }
     }
 
-    bestMove(){
-        let moves=this.moves();
-        let best=-1e9,move=moves[0];
-        for(let c of moves){
-            let r=this.drop(c,2);
-            let val=this.minimax(4,-1e9,1e9,1);
+    bestMove() {
+        let moves = this.orderMoves(this.moves());
+
+        let bestScore = -Infinity;
+        let bestMove = moves[0];
+
+        for (let c of moves) {
+            this.drop(c, 2);
+
+            let score = this.minimax(6, -Infinity, Infinity, false); // 🔥 strong depth
+
             this.undo(c);
-            if(val>best){best=val;move=c;}
-        }
-        return move;
-    }
-}
 
-let game;
-let currentPlayer=1;
-
-function createBoard(rows,cols){
-    let board=document.getElementById("board");
-    board.innerHTML="";
-    board.style.gridTemplateColumns=`repeat(${cols},60px)`;
-
-    for(let c=0;c<cols;c++){
-        for(let r=0;r<rows;r++){
-            let cell=document.createElement("div");
-            cell.className="cell";
-            cell.onclick=()=>play(c);
-            board.appendChild(cell);
-        }
-    }
-}
-
-function play(c){
-    if(currentPlayer!=1) return;
-
-    let r=game.drop(c,1);
-    if(r==-1) return;
-
-    render();
-    if(game.win(1)) return alert("You win!");
-
-    currentPlayer=2;
-
-    setTimeout(()=>{
-        let aiMove=game.bestMove();
-        game.drop(aiMove,2);
-        render();
-        if(game.win(2)) alert("AI wins!");
-        currentPlayer=1;
-    },300);
-}
-
-function render(){
-    let cells=document.querySelectorAll(".cell");
-    let i=0;
-
-    for(let r=0;r<game.R;r++){
-        for(let c=0;c<game.C;c++){
-            cells[i].innerHTML="";
-            if(game.board[r][c]!=0){
-                let p=document.createElement("div");
-                p.className="piece "+(game.board[r][c]==1?"red":"yellow");
-                p.style.top="0px";
-                cells[i].appendChild(p);
+            if (score > bestScore) {
+                bestScore = score;
+                bestMove = c;
             }
-            i++;
         }
+
+        return bestMove;
     }
 }
-
-function restart(){
-    let rows=parseInt(document.getElementById("mode").value);
-    game=new Connect4AI(rows,7);
-    currentPlayer=1;
-    createBoard(rows,7);
-    render();
-}
-
-restart();
-</script>
-
-</body>
-</html>
