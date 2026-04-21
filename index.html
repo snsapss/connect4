@@ -1,7 +1,3 @@
-// Connect4 AI Solver (7x4 / 7x5) - GitHub Pages Ready Version
-// Fully browser-compatible, no imports, no Node.js required
-// Strong Alpha-Beta + Iterative Deepening + Transposition Table
-
 (function (global) {
 
 class Connect4AI {
@@ -9,14 +5,9 @@ class Connect4AI {
         this.R = rows;
         this.C = cols;
         this.MAX_TIME = maxTime;
-
         this.board = Array.from({ length: rows }, () => Array(cols).fill(0));
         this.cache = new Map();
         this.startTime = 0;
-    }
-
-    cloneBoard() {
-        return this.board.map(r => r.slice());
     }
 
     key(player) {
@@ -35,7 +26,7 @@ class Connect4AI {
         for (let r = this.R - 1; r >= 0; r--) {
             if (this.board[r][col] === 0) {
                 this.board[r][col] = player;
-                break;
+                return;
             }
         }
     }
@@ -44,23 +35,37 @@ class Connect4AI {
         for (let r = 0; r < this.R; r++) {
             if (this.board[r][col] !== 0) {
                 this.board[r][col] = 0;
-                break;
+                return;
             }
         }
     }
 
     win(player) {
-        const b = this.board;
-        const R = this.R, C = this.C;
+        const b = this.board, R = this.R, C = this.C;
 
         for (let r = 0; r < R; r++) {
             for (let c = 0; c < C; c++) {
                 if (b[r][c] !== player) continue;
 
-                if (c + 3 < C && b[r][c+1]===player && b[r][c+2]===player && b[r][c+3]===player) return true;
-                if (r + 3 < R && b[r+1][c]===player && b[r+2][c]===player && b[r+3][c]===player) return true;
-                if (r + 3 < R && c + 3 < C && b[r+1][c+1]===player && b[r+2][c+2]===player && b[r+3][c+3]===player) return true;
-                if (r + 3 < R && c - 3 >= 0 && b[r+1][c-1]===player && b[r+2][c-2]===player && b[r+3][c-3]===player) return true;
+                if (c + 3 < C &&
+                    b[r][c+1]===player &&
+                    b[r][c+2]===player &&
+                    b[r][c+3]===player) return true;
+
+                if (r + 3 < R &&
+                    b[r+1][c]===player &&
+                    b[r+2][c]===player &&
+                    b[r+3][c]===player) return true;
+
+                if (r + 3 < R && c + 3 < C &&
+                    b[r+1][c+1]===player &&
+                    b[r+2][c+2]===player &&
+                    b[r+3][c+3]===player) return true;
+
+                if (r + 3 < R && c - 3 >= 0 &&
+                    b[r+1][c-1]===player &&
+                    b[r+2][c-2]===player &&
+                    b[r+3][c-3]===player) return true;
             }
         }
         return false;
@@ -74,7 +79,7 @@ class Connect4AI {
 
     orderMoves(moves) {
         const center = Math.floor(this.C / 2);
-        return moves.sort((a, b) => Math.abs(a - center) - Math.abs(b - center));
+        return moves.sort((a,b)=>Math.abs(a-center)-Math.abs(b-center));
     }
 
     search(depth, alpha, beta, player) {
@@ -90,6 +95,7 @@ class Connect4AI {
 
         if (player === 2) {
             let best = -Infinity;
+
             for (let c of moves) {
                 this.drop(c, 2);
                 let score = this.search(depth - 1, alpha, beta, 1);
@@ -99,10 +105,11 @@ class Connect4AI {
                 alpha = Math.max(alpha, score);
                 if (beta <= alpha) break;
             }
-            this.cache.set(k, best);
-            return best;
+
+            return this.cache.set(k, best), best;
         } else {
             let best = Infinity;
+
             for (let c of moves) {
                 this.drop(c, 1);
                 let score = this.search(depth - 1, alpha, beta, 2);
@@ -112,8 +119,8 @@ class Connect4AI {
                 beta = Math.min(beta, score);
                 if (beta <= alpha) break;
             }
-            this.cache.set(k, best);
-            return best;
+
+            return this.cache.set(k, best), best;
         }
     }
 
@@ -144,14 +151,6 @@ class Connect4AI {
     }
 }
 
-// Expose globally for GitHub Pages / browser
 global.Connect4AI = Connect4AI;
 
 })(window);
-
-/*
-USAGE IN GITHUB PAGES:
-
-const ai = new Connect4AI(5,7,2000);
-let move = ai.bestMove(2);
-*/
