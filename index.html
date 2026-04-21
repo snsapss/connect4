@@ -1,88 +1,99 @@
-let cache = new Map()
+let cache = new Map();
 
 function bestMove(){
-    if(R === 4) return perfectMove()
-    return timedMove()
+    if(R === 4) return perfectMove();
+    return timedMove();
 }
 
 function perfectMove(){
-    cache.clear()
+    cache.clear();
 
-    let best = -2
-    let move = moves()[0]
+    let best = -2;
+    let move = moves()[0];
 
     for(let c of moves()){
-        drop(c,2)
-        let score = perfectSearch(1)
-        undo(c)
+        drop(c,2);
+
+        let score = perfectSearch(1);
+
+        undo(c);
 
         if(score > best){
-            best = score
-            move = c
+            best = score;
+            move = c;
         }
     }
 
-    return move
+    return move;
 }
 
 function boardKey(){
-    return board.flat().join("")
+    return board.flat().join("");
 }
 
 function perfectSearch(player){
 
-    let k = boardKey()
-    if(cache.has(k)) return cache.get(k)
+    let k = boardKey();
 
-    if(win(board,2)) return 1
-    if(win(board,1)) return -1
+    if(cache.has(k))
+        return cache.get(k);
 
-    let m = moves()
-    if(!m.length) return 0
+    if(win(board,2)) return 1;
+    if(win(board,1)) return -1;
 
-    let best = player === 2 ? -2 : 2
+    let m = moves();
+
+    if(!m.length) return 0;
+
+    let best = player === 2 ? -2 : 2;
 
     for(let c of m){
 
-        drop(c,player)
-        let score = perfectSearch(player === 2 ? 1 : 2)
-        undo(c)
+        drop(c,player);
+
+        let score = perfectSearch(player === 2 ? 1 : 2);
+
+        undo(c);
 
         if(player === 2){
-            best = Math.max(best,score)
-            if(best === 1) break
+            best = Math.max(best,score);
+            if(best === 1) break;
         }else{
-            best = Math.min(best,score)
-            if(best === -1) break
+            best = Math.min(best,score);
+            if(best === -1) break;
         }
     }
 
-    cache.set(k,best)
-    return best
+    cache.set(k,best);
+    return best;
 }
 
 function timedMove(){
 
-    startTime = Date.now()
+    startTime = Date.now();
 
-    let best = -99999
-    let move = moves()[0]
+    let best = -99999;
+    let move = moves()[0];
 
     for(let depth=1; depth<=10; depth++){
 
         for(let c of moves()){
-            drop(c,2)
-            let v = search(depth,-99999,99999,false)
-            undo(c)
+
+            drop(c,2);
+
+            let v = search(depth,-99999,99999,false);
+
+            undo(c);
 
             if(v > best){
-                best = v
-                move = c
+                best = v;
+                move = c;
             }
         }
 
-        if(Date.now() - startTime > MAX_TIME) break
+        if(Date.now() - startTime > MAX_TIME)
+            break;
     }
 
-    return move
+    return move;
 }
