@@ -1,83 +1,88 @@
+let cache = new Map()
+
 function bestMove(){
-
-// PERFECT solver for 7x4
-if(R===4){
-return perfectMove()
-}
-
-// STRONG solver for 7x5
-return timedMove()
+    if(R === 4) return perfectMove()
+    return timedMove()
 }
 
 function perfectMove(){
+    cache.clear()
 
-let best=-999
-let move=3
+    let best = -2
+    let move = moves()[0]
 
-for(let c of moves()){
-drop(c,2)
-let score=perfectSearch(false)
-undo(c)
+    for(let c of moves()){
+        drop(c,2)
+        let score = perfectSearch(1)
+        undo(c)
 
-if(score>best){
-best=score
-move=c
-}
-}
+        if(score > best){
+            best = score
+            move = c
+        }
+    }
 
-return move
-}
-
-function perfectSearch(max){
-
-if(win(board,2))return 1
-if(win(board,1))return -1
-
-let m=moves()
-if(!m.length)return 0
-
-if(max){
-let best=-2
-for(let c of m){
-drop(c,2)
-best=Math.max(best,perfectSearch(false))
-undo(c)
-if(best==1)break
-}
-return best
-}else{
-let best=2
-for(let c of m){
-drop(c,1)
-best=Math.min(best,perfectSearch(true))
-undo(c)
-if(best==-1)break
-}
-return best
+    return move
 }
 
+function boardKey(){
+    return board.flat().join("")
+}
+
+function perfectSearch(player){
+
+    let k = boardKey()
+    if(cache.has(k)) return cache.get(k)
+
+    if(win(board,2)) return 1
+    if(win(board,1)) return -1
+
+    let m = moves()
+    if(!m.length) return 0
+
+    let best = player === 2 ? -2 : 2
+
+    for(let c of m){
+
+        drop(c,player)
+        let score = perfectSearch(player === 2 ? 1 : 2)
+        undo(c)
+
+        if(player === 2){
+            best = Math.max(best,score)
+            if(best === 1) break
+        }else{
+            best = Math.min(best,score)
+            if(best === -1) break
+        }
+    }
+
+    cache.set(k,best)
+    return best
 }
 
 function timedMove(){
 
-startTime=Date.now()
-let best=-999
-let move=3
+    startTime = Date.now()
 
-for(let depth=1;depth<=10;depth++){
-for(let c of moves()){
-drop(c,2)
-let v=search(depth,-99999,99999,false)
-undo(c)
+    let best = -99999
+    let move = moves()[0]
 
-if(v>best){
-best=v
-move=c
-}
-}
+    for(let depth=1; depth<=10; depth++){
 
-if(Date.now()-startTime>MAX_TIME)break
-}
+        for(let c of moves()){
+            drop(c,2)
+            let v = search(depth,-99999,99999,false)
+            undo(c)
 
-return move
+            if(v > best){
+                best = v
+                move = c
+            }
+        }
+
+        if(Date.now() - startTime > MAX_TIME) break
+    }
+
+    return move
 }
