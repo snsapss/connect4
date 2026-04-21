@@ -1,5 +1,8 @@
-// Connect4 AI Solver (7x4 / 7x5) - Strong Alpha-Beta with Transposition Table
-// Clean, stable, no recursion cache bugs, optimized move ordering
+// Connect4 AI Solver (7x4 / 7x5) - GitHub Pages Ready Version
+// Fully browser-compatible, no imports, no Node.js required
+// Strong Alpha-Beta + Iterative Deepening + Transposition Table
+
+(function (global) {
 
 class Connect4AI {
     constructor(rows = 6, cols = 7, maxTime = 2000) {
@@ -70,7 +73,6 @@ class Connect4AI {
     }
 
     orderMoves(moves) {
-        // center-first ordering for strength
         const center = Math.floor(this.C / 2);
         return moves.sort((a, b) => Math.abs(a - center) - Math.abs(b - center));
     }
@@ -84,7 +86,6 @@ class Connect4AI {
         if (depth === 0) return this.evaluate();
 
         let moves = this.orderMoves(this.moves());
-
         if (moves.length === 0) return 0;
 
         if (player === 2) {
@@ -143,8 +144,14 @@ class Connect4AI {
     }
 }
 
+// Expose globally for GitHub Pages / browser
+global.Connect4AI = Connect4AI;
+
+})(window);
+
 /*
-USAGE:
-const ai = new Connect4AI(6,7,2000); // or (5,7,2000)
+USAGE IN GITHUB PAGES:
+
+const ai = new Connect4AI(5,7,2000);
 let move = ai.bestMove(2);
 */
